@@ -35,29 +35,19 @@ class Command(BaseCommand):
         expiration_dates = [today - timezone.timedelta(days=d) for d in expiration_days]
         expiration_dates += [today]
 
-        filter_arg = None
-        for d in expiration_dates:
-            since = self._make_date_lookup_arg(d)
-            until = self._make_date_lookup_arg(d + timezone.timedelta(days=1))
+        since = self._make_date_lookup_arg(min(expiration_dates))
+        until = self._make_date_lookup_arg(max(expiration_dates) + timezone.timedelta(days=1))
 
-            if filter_arg is None:
-                filter_arg = Q(valid_until__gte=since, valid_until__lt=until)
-            else:
-                filter_arg |= Q(valid_until__gte=since, valid_until__lt=until)
+        filter_arg = Q(valid_until__gte=since, valid_until__lt=until)
 
         if settings.USE_I18N:
             translation.activate(settings.LANGUAGE_CODE)
-        for payment in Payment.objects.filter(filter_arg):
+
+        payments = Payment.objects.select_related('last_transaction').filter(filter_arg)\
+                                                    .exclude(last_transaction__status=3)
+
+        for payment in payments:
             last_payment = payment.member.get_last_payment()
-
-            if last_payment:
-                last_payment_date = last_payment.valid_until.date()
-                status = [last_payment_date > d for d in expiration_dates]
-                already_renewed = all(status)
-
-                # skip to send notification if already renewed
-                if already_renewed:
-                    continue
 
             valid_until_date = payment.valid_until.date()
             context = {
