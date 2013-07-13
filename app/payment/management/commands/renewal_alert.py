@@ -35,10 +35,12 @@ class Command(BaseCommand):
         expiration_dates = [today - timezone.timedelta(days=d) for d in expiration_days]
         expiration_dates += [today]
 
-        since = self._make_date_lookup_arg(min(expiration_dates))
-        until = self._make_date_lookup_arg(max(expiration_dates) + timezone.timedelta(days=1))
+        filter_arg = Q()
+        for expiration_day in expiration_dates:
+            since = self._make_date_lookup_arg(expiration_day)
+            until = self._make_date_lookup_arg(expiration_day + timezone.timedelta(days=1))
 
-        filter_arg = Q(valid_until__gte=since, valid_until__lt=until)
+            filter_arg |= Q(valid_until__gte=since, valid_until__lt=until)
 
         if settings.USE_I18N:
             translation.activate(settings.LANGUAGE_CODE)
